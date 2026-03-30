@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorldFest Overlay Tool</title>
+<style>
+  body { font-family: Arial; text-align:center; background:#111; color:white; }
+  canvas { max-width:100%; margin-top:20px; }
+  button { padding:12px 20px; margin-top:10px; cursor:pointer; }
+</style>
+</head>
+<body>
+
+<h2>Upload Your Photo</h2>
+<input type="file" id="upload" accept="image/*"><br>
+<label>
+  <input type="checkbox" id="agree"> I agree to the <a href="https://www.worldfest.org/privacy#terms" target="_blank">Terms</a>
+</label><br>
+<button id="generate">Generate Poster</button>
+<button id="download" style="display:none;">Download</button>
+
+<canvas id="canvas"></canvas>
+
+<script>
+const overlaySrc = "WF59_36x48_BLANK-02.png"; // MUST be hosted or embedded
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let uploadedImg = null;
+
+// Upload
+document.getElementById("upload").addEventListener("change", e => {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = evt => {
+    uploadedImg = new Image();
+    uploadedImg.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// Generate
+
+document.getElementById("generate").onclick = async () => {
+  if (!document.getElementById("agree").checked) {
+    alert("You must agree to the Terms.");
+    return;
+  }
+  if (!uploadedImg) {
+    alert("Upload an image first.");
+    return;
+  }
+
+  const overlay = new Image();
+  overlay.src = overlaySrc;
+
+  overlay.onload = () => {
+    canvas.width = overlay.width;
+    canvas.height = overlay.height;
+
+    // --- DRAW USER IMAGE (FULL BLEED, CENTER CROP) ---
+    const imgRatio = uploadedImg.width / uploadedImg.height;
+    const canvasRatio = canvas.width / canvas.height;
+
+    let drawWidth, drawHeight, dx, dy;
+
+    if (imgRatio > canvasRatio) {
+      drawHeight = canvas.height;
+      drawWidth = uploadedImg.width * (canvas.height / uploadedImg.height);
+      dx = -(drawWidth - canvas.width) / 2;
+      dy = 0;
+    } else {
+      drawWidth = canvas.width;
+      drawHeight = uploadedImg.height * (canvas.width / uploadedImg.width);
+      dx = 0;
+      dy = -(drawHeight - canvas.height) / 2;
+    }
+
+    // IMPORTANT: draw photo FIRST
+    ctx.drawImage(uploadedImg, dx, dy, drawWidth, drawHeight);
+
+    // --- OPTIONAL: DARKEN BACKGROUND FOR BETTER BLEND ---
+    ctx.fillStyle = "rgba(0,0,0,0.25)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // --- DRAW OVERLAY ON TOP (THIS IS THE FIX) ---
+    ctx.drawImage(overlay, 0, 0, canvas.width, canvas.height);
+
+    document.getElementById("download").style.display = "inline-block";
+  };
+};
+
+// Download
+
+document.getElementById("download").onclick = () => {
+  const link = document.createElement("a");
+  link.download = "worldfest-poster.jpg";
+  link.href = canvas.toDataURL("image/jpeg", 0.95);
+  link.click();
+};
+</script>
+
+</body>
+</html>
