@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WorldFest Make A Scene</title>
+</head>
+<body style="margin:0;font-family:Arial,sans-serif;background:#f6f6f6;color:#111;">
+  <div style="max-width:480px;margin:0 auto;padding:16px;">
+    <h1 style="font-size:28px;line-height:1.1;margin:0 0 8px;">Make A Scene</h1>
+    <p style="margin:0 0 16px;font-size:14px;line-height:1.4;">Upload one photo, unlock the scenes, and generate vertically optimized posters.</p>
+
+    <div id="gate" style="background:#fff;border:1px solid #ddd;padding:12px;margin:0 0 12px;">
+      <div style="font-size:13px;margin:0 0 8px;">Enter access password</div>
+      <input id="password" type="password" placeholder="Password" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #bbb;margin:0 0 8px;" />
+      <button id="unlockBtn" style="width:100%;padding:12px;border:0;background:#111;color:#fff;">Unlock</button>
+      <div id="gateMsg" style="font-size:12px;color:#666;margin-top:8px;"></div>
+    </div>
+
+    <div id="app" style="display:none;">
+      <div style="background:#fff;border:1px solid #ddd;padding:12px;margin:0 0 12px;">
+        <input id="upload" type="file" accept="image/*" capture="user" style="width:100%;margin:0 0 10px;" />
+        <label style="font-size:13px;display:block;line-height:1.4;">
+          <input id="agree" type="checkbox" /> I agree to the <a href="https://www.worldfest.org/privacy#terms" target="_blank" rel="noopener">Terms of Service</a>
+        </label>
+        <div id="uploadMsg" style="font-size:12px;color:#666;margin-top:8px;">Upload one clear portrait photo to enable scene generation.</div>
+      </div>
+
+      <div id="sceneList"></div>
+    </div>
+  </div>
+
+  <div id="busyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);padding:20px;box-sizing:border-box;z-index:9999;">
+    <div style="max-width:420px;margin:10vh auto;background:#fff;padding:16px;border:1px solid #ccc;">
+      <div style="font-weight:700;margin:0 0 8px;">AI servers are too busy right now</div>
+      <div id="busyText" style="font-size:14px;line-height:1.4;margin:0 0 12px;">Try the fallback poster instead.</div>
+      <button id="fallbackBtn" style="width:100%;padding:12px;border:0;background:#111;color:#fff;margin:0 0 8px;">Generate default poster</button>
+      <button id="closeBusyBtn" style="width:100%;padding:12px;border:1px solid #111;background:#fff;color:#111;">Close</button>
+    </div>
+  </div>
+
+<script>
+const WORKER_BASE = "https://YOUR-WORKER-DOMAIN.example.com";
+const OVERLAY_SOURCE = WORKER_BASE + "/overlay";
+
+const SCENES = [
+  {
+    id: "personal",
+    title: "Scene 1 — Make It Personal",
+    label: "MAKE IT PERSONAL",
+    thumb: "https://placehold.co/480x640?text=Scene+1",
+    prompt: "Vertical cinematic poster. Preserve the uploaded person's facial identity and general face structure as closely as possible. Transform the subject into a poised martial-arts hero in a dramatic wooden interior inspired by classic wuxia cinema. The subject is in sharp focus, facing camera with intense eyes, one arm raised, one curved sword extended toward the viewer. Elegant traditional costume with richly detailed sleeves. Warm, moody, cinematic lighting. Keep strong portrait composition with room for a branded overlay frame."
+  },
+  {
+    id: "loud",
+    title: "Scene 2 — Make It Loud",
+    label: "MAKE IT LOUD",
+    thumb: "https://placehold.co/480x640?text=Scene+2",
+    prompt: "Vertical cinematic poster. Preserve the uploaded person's facial identity and likeness as closely as possible. Transform the subject into an enraged broadcast personality in a 1970s television newsroom inspired by Network. The subject leans forward over a desk, pointing aggressively at camera, mouth open mid-shout, with rumpled jacket or professional newsroom styling. Wood-paneled walls, analog world clocks, and red phones in background. Dramatic newsroom lighting. Keep portrait framing optimized for a vertical poster."
+  },
+  {
+    id: "exit",
+    title: "Scene 3 — Make An Exit",
+    label: "MAKE AN EXIT",
+    thumb: "https://placehold.co/480x640?text=Scene+3",
+    prompt: "Vertical black-and-white cinematic poster. Preserve the uploaded person's facial identity and likeness as closely as possible. Transform the subject into a classic 1940s farewell scene inspired by Casablanca. Foggy airport tarmac at night, trench coat or elegant tailored attire, fedora or 1940s hat styling, wistful emotional expression, faint airplane silhouette in the mist. High-contrast film noir lighting. Leave clean composition for a branded frame overlay."
+  },
+  {
+    id: "entrance",
+    title: "Scene 4 — Make An Entrance",
+    label: "MAKE AN ENTRANCE",
+    thumb: "https://placehold.co/480x640?text=Scene+4",
+    prompt: "Vertical cinematic poster. Preserve the uploaded person's facial identity and likeness as closely as possible. Transform the subject into a bold 1950s carnival arrival inspired by Grease. Bright daytime carnival background, colorful booths, balloons, fair crowd, rebellious glam styling, confident pose toward camera, polished retro hair and wardrobe. The subject should dominate the right or center of frame like a movie poster. Rich color, shallow depth of field, polished studio-grade realism."
+  },
+  {
+    id: "scene",
+    title: "Scene 5 — Make A Scene",
+    label: "MAKE A SCENE",
+    thumb: "https://placehold.co/480x640?text=Scene+5",
+    prompt: "Vertical cinematic poster. Preserve the uploaded person's facial identity and likeness as closely as possible. Transform the subject into a lively deli scene inspired by When Harry Met Sally. Warm diner lighting, cable-knit sweater or era-appropriate wardrobe, ecstatic head-back performance moment, sandwiches and plates on the table, blurred patrons in background, romantic-comedy energy. Keep the composition strong for a vertical poster with overlay branding."
+  }
+];
+
+let uploadedDataUrl = "";
+let currentFallbackScene = null;
+
+const gate = document.getElementById('gate');
+const app = document.getElementById('app');
+const gateMsg = document.getElementById('gateMsg');
+const uploadMsg = document.getElementById('uploadMsg');
+const sceneList = document.getElementById('sceneList');
+const busyModal = document.getElementById('busyModal');
+const busyText = document.getElementById('busyText');
+
+function createSceneCard(scene) {
+  const card = document.createElement('div');
+  card.style.background = '#fff';
+  card.style.border = '1px solid #ddd';
+  card.style.padding = '12px';
+  card.style.marginBottom = '12px';
+  card.innerHTML = `
+    <div style="font-weight:700;margin:0 0 8px;">${scene.title}</div>
+    <div style="position:relative;border:1px solid #ddd;background:#eee;overflow:hidden;aspect-ratio:4/5;margin:0 0 8px;">
+      <img id="thumb-${scene.id}" src="${scene.thumb}" alt="${scene.title}" style="width:100%;height:100%;object-fit:cover;filter:blur(8px) brightness(.7);transform:scale(1.06);display:block;" />
+      <div id="hint-${scene.id}" style="position:absolute;inset:auto 12px 12px 12px;background:rgba(255,255,255,.88);padding:8px;font-size:12px;line-height:1.35;">Upload a photo, then generate this scene.</div>
+      <canvas id="canvas-${scene.id}" style="display:none;width:100%;height:100%;"></canvas>
+    </div>
+    <button id="btn-${scene.id}" style="width:100%;padding:12px;border:0;background:#111;color:#fff;">Generate ${scene.label}</button>
+    <button id="dl-${scene.id}" style="display:none;width:100%;padding:12px;border:1px solid #111;background:#fff;color:#111;margin-top:8px;">Download</button>
+    <div id="msg-${scene.id}" style="font-size:12px;color:#666;margin-top:8px;"></div>
+  `;
+  sceneList.appendChild(card);
+  document.getElementById(`btn-${scene.id}`).addEventListener('click', () => handleGenerate(scene));
+  document.getElementById(`dl-${scene.id}`).addEventListener('click', () => downloadScene(scene.id));
+}
+
+SCENES.forEach(createSceneCard);
+
+async function unlock() {
+  gateMsg.textContent = 'Checking password...';
+  try {
+    const password = document.getElementById('password').value.trim();
+    const res = await fetch(WORKER_BASE + '/auth-check', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.ok) throw new Error(data.error || 'Wrong password');
+    sessionStorage.setItem('wf_password', password);
+    gate.style.display = 'none';
+    app.style.display = 'block';
+  } catch (err) {
+    gateMsg.textContent = err.message || 'Unable to unlock';
+  }
+}
+
+document.getElementById('unlockBtn').addEventListener('click', unlock);
+if (sessionStorage.getItem('wf_password')) {
+  gate.style.display = 'none';
+  app.style.display = 'block';
+}
+
+document.getElementById('upload').addEventListener('change', (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    uploadedDataUrl = reader.result;
+    uploadMsg.textContent = 'Photo uploaded. You can now generate each scene one by one.';
+    SCENES.forEach(scene => {
+      const hint = document.getElementById(`hint-${scene.id}`);
+      hint.textContent = 'Ready. Tap generate for this scene.';
+    });
+  };
+  reader.readAsDataURL(file);
+});
+
+async function handleGenerate(scene) {
+  const password = sessionStorage.getItem('wf_password') || document.getElementById('password').value.trim();
+  const agreed = document.getElementById('agree').checked;
+  const msg = document.getElementById(`msg-${scene.id}`);
+  if (!password) { msg.textContent = 'Enter the password first.'; return; }
+  if (!agreed) { msg.textContent = 'You must agree to the Terms first.'; return; }
+  if (!uploadedDataUrl) { msg.textContent = 'Upload a photo first.'; return; }
+
+  msg.textContent = 'Generating...';
+  try {
+    const res = await fetch(WORKER_BASE + '/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type':'application/json',
+        'X-App-Password': password
+      },
+      body: JSON.stringify({
+        sceneId: scene.id,
+        prompt: scene.prompt,
+        imageDataUrl: uploadedDataUrl
+      })
+    });
+    const data = await res.json();
+    if (data.fallbackRecommended) {
+      currentFallbackScene = scene;
+      busyText.textContent = data.message || 'AI servers are too busy right now. You can generate the default poster instead.';
+      busyModal.style.display = 'block';
+      msg.textContent = 'Primary AI unavailable.';
+      return;
+    }
+    if (!res.ok || !data.image) throw new Error(data.error || 'Generation failed');
+    await renderSceneToCanvas(scene, data.image, false);
+    msg.textContent = data.provider ? ('Done via ' + data.provider) : 'Done';
+  } catch (err) {
+    currentFallbackScene = scene;
+    busyText.textContent = err.message || 'AI servers are too busy right now. You can generate the default poster instead.';
+    busyModal.style.display = 'block';
+    msg.textContent = 'Unable to generate right now.';
+  }
+}
+
+async function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function renderSceneToCanvas(scene, imageSrc, includePromptBands) {
+  const base = await loadImage(imageSrc);
+  const overlay = await loadImage(OVERLAY_SOURCE + '?v=' + Date.now());
+  const canvas = document.getElementById(`canvas-${scene.id}`);
+  const thumb = document.getElementById(`thumb-${scene.id}`);
+  const hint = document.getElementById(`hint-${scene.id}`);
+  const dl = document.getElementById(`dl-${scene.id}`);
+  const ctx = canvas.getContext('2d');
+
+  const W = 1080;
+  const H = 1350;
+  canvas.width = W;
+  canvas.height = H;
+
+  const baseRatio = base.width / base.height;
+  const outRatio = W / H;
+  let drawW, drawH, dx, dy;
+  if (baseRatio > outRatio) {
+    drawH = H;
+    drawW = base.width * (H / base.height);
+    dx = (W - drawW) / 2;
+    dy = 0;
+  } else {
+    drawW = W;
+    drawH = base.height * (W / base.width);
+    dx = 0;
+    dy = (H - drawH) / 2;
+  }
+
+  ctx.clearRect(0,0,W,H);
+  ctx.drawImage(base, dx, dy, drawW, drawH);
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(0,0,W,H);
+
+  if (includePromptBands) {
+    drawPromptBands(ctx, scene.prompt, W, H);
+  }
+
+  ctx.drawImage(overlay, 0, 0, W, H);
+
+  thumb.style.display = 'none';
+  hint.style.display = 'none';
+  canvas.style.display = 'block';
+  dl.style.display = 'block';
+}
+
+function drawWrappedLines(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+  const words = text.split(/\s+/);
+  let line = '';
+  let lines = 0;
+  for (let i = 0; i < words.length; i++) {
+    const test = line ? line + ' ' + words[i] : words[i];
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, y + (lines * lineHeight));
+      line = words[i];
+      lines++;
+      if (lines >= maxLines) break;
+    } else {
+      line = test;
+    }
+  }
+  if (lines < maxLines && line) ctx.fillText(line, x, y + (lines * lineHeight));
+}
+
+function drawPromptBands(ctx, prompt, W, H) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,.88)';
+  ctx.fillRect(0,0,W,96);
+  ctx.fillRect(0,H-120,W,120);
+  ctx.fillStyle = '#111';
+  ctx.font = '20px Arial';
+  drawWrappedLines(ctx, prompt, 28, 22, W - 56, 24, 2);
+  drawWrappedLines(ctx, prompt, 28, H - 94, W - 56, 24, 3);
+  ctx.restore();
+}
+
+function downloadScene(sceneId) {
+  const canvas = document.getElementById(`canvas-${sceneId}`);
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/jpeg', 0.95);
+  a.download = 'worldfest-' + sceneId + '.jpg';
+  a.click();
+}
+
+document.getElementById('fallbackBtn').addEventListener('click', async () => {
+  if (!currentFallbackScene) return;
+  busyModal.style.display = 'none';
+  await renderSceneToCanvas(currentFallbackScene, uploadedDataUrl, true);
+  const msg = document.getElementById(`msg-${currentFallbackScene.id}`);
+  msg.textContent = 'Fallback poster generated locally.';
+});
+
+document.getElementById('closeBusyBtn').addEventListener('click', () => {
+  busyModal.style.display = 'none';
+});
+</script>
+</body>
+</html>
