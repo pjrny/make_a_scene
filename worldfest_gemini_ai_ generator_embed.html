@@ -28,7 +28,7 @@
         </div>
     </div>
 
-    <!-- MAIN APP SCREEN (Hidden until auth) -->
+    <!-- MAIN APP SCREEN -->
     <div id="mainScreen" class="hidden flex-col w-full">
         <header class="bg-[#6b0f1a] text-[#fcdedc] p-6 shadow-md">
             <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
@@ -42,6 +42,7 @@
         <main class="flex-grow max-w-6xl mx-auto w-full p-6 flex flex-col gap-8">
             <section class="bg-white p-6 rounded-xl shadow-sm border border-red-100">
                 <h2 class="text-2xl font-bold mb-4 font-anton tracking-wide">Upload Your Photo</h2>
+                <p class="mb-4 text-gray-700">Upload a clear picture of yourself to cast yourself into these iconic movie moments.</p>
                 <label class="flex flex-col items-center justify-center w-full h-64 border-2 border-[#6b0f1a] border-dashed rounded-xl cursor-pointer bg-red-50 hover:bg-red-100 transition">
                     <div class="flex flex-col items-center justify-center pt-5 pb-6">
                         <svg class="w-12 h-12 mb-4 text-[#6b0f1a]" fill="none" viewBox="0 0 20 16" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
@@ -53,7 +54,7 @@
 
             <section id="resultsSection" class="hidden">
                 <h2 class="text-3xl font-bold mb-6 font-anton tracking-wide text-center">Your Scenes</h2>
-                <div id="gallery" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+                <div id="gallery" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-8"></div>
             </section>
         </main>
     </div>
@@ -74,28 +75,37 @@
 
 <script>
     // --- APP STATE ---
-    const WORKER_URL = "https://worldfest-make-a-scene.message-0ad.workers.dev"; // UPDATE THIS TO YOUR ACTUAL URL
+    // REMEMBER TO UPDATE YOUR CLOUDFLARE WORKER URL HERE:
+    const WORKER_URL = "https://worldfest-make-a-scene.message-0ad.workers.dev"; 
     const OVERLAY_URL = "https://flix.worldfest.org/web/image/1303-66b22058/WF59_36x48_BLANK-02.webp";
     let currentUserImage = null;
     let currentFailedConfig = null;
     let activePasscode = "";
 
+    // Added specific preview URLs for the placeholders
     const scenesConfig = [
-        { id: "original", type: "original", title: "Original" },
+        { 
+            id: "original", type: "original", title: "Make A Scene",
+            previewUrl: "https://flix.worldfest.org/web/image/1320-d9458722/MAS1.png"
+        },
         {
-            id: "carnival", type: "ai", title: "Carnival Scene",
+            id: "entrance", type: "ai", title: "Make An Entrance",
+            previewUrl: "https://flix.worldfest.org/web/image/1319-3f8820d2/MAS2.png",
             prompt: "Transform this person preserving their identity perfectly. Female: 1950s blonde blowout, leather jacket, cigarette. Male: 1950s greaser pompadour, black t-shirt. Background: 1950s carnival, 'PRETZELS' sign, sunny, 35mm film."
         },
         {
-            id: "casablanca", type: "ai", title: "Airport Farewell",
+            id: "exit", type: "ai", title: "Make An Exit",
+            previewUrl: "https://flix.worldfest.org/web/image/1318-4fe37bdf/MAS3.png",
             prompt: "Transform this person preserving their identity perfectly. Female: 1940s waves, tailored wool blazer, cloche hat. Male: classic trench coat, fedora hat. Background: Foggy airport tarmac, 1940s airplane, High-contrast Black and White film noir."
         },
         {
-            id: "diner", type: "ai", title: "Diner Laughter",
+            id: "loud", type: "ai", title: "Make It Loud",
+            previewUrl: "https://flix.worldfest.org/web/image/1317-02df90ca/MAS4.png",
             prompt: "Transform this person preserving their identity perfectly. Female/Male: 1980s hair, thick cable-knit sweater, throwing head back in laughter. Background: Classic New York delicatessen, wooden table, sandwich, warm lighting."
         },
         {
-            id: "office", type: "ai", title: "Mad Broadcast",
+            id: "personal", type: "ai", title: "Make It Personal",
+            previewUrl: "https://flix.worldfest.org/web/image/1316-265611e6/MAS5.png",
             prompt: "Transform this person preserving their identity perfectly. Female/Male: Rumpled 1970s trench coat, pointing aggressively at the camera, angry expression. Background: 1976 newsroom, wood-paneled wall, world clocks, broadcast phones."
         }
     ];
@@ -126,14 +136,14 @@
             const base64Str = await fileToBase64(file);
             currentUserImage = base64Str; // Save globally for fallbacks
             
-            // 1. Original (Auto-generates)
+            // 1. Original (Auto-generates from uploaded image)
             createGalleryItem(scenesConfig[0]);
             document.getElementById(`loader-${scenesConfig[0].id}`).classList.add('hidden');
             const imgEl = document.getElementById(`img-${scenesConfig[0].id}`);
             imgEl.src = base64Str;
             imgEl.classList.remove('hidden');
 
-            // 2. Setup AI Placeholders
+            // 2. Setup Pre-defined Thumbnail Placeholders
             for (let i = 1; i < scenesConfig.length; i++) {
                 const config = scenesConfig[i];
                 createGalleryItem(config);
@@ -141,9 +151,10 @@
                 const btn = document.getElementById(`btn-${config.id}`);
                 const img = document.getElementById(`img-${config.id}`);
                 
-                img.src = base64Str;
+                // Show predefined preview URL with slight blur
+                img.src = config.previewUrl;
                 img.classList.remove('hidden');
-                img.classList.add('opacity-30', 'blur-sm', 'grayscale');
+                img.classList.add('opacity-70', 'blur-sm');
 
                 btn.addEventListener('click', () => triggerAIGeneration(config));
             }
@@ -164,15 +175,15 @@
     function createGalleryItem(config) {
         const gallery = document.getElementById('gallery');
         const itemHtml = `
-            <div class="bg-white p-4 rounded-xl shadow-md flex flex-col items-center justify-center min-h-[400px] relative overflow-hidden group">
-                <img id="img-${config.id}" class="hidden w-full h-full object-cover rounded-lg absolute inset-0 z-0">
+            <div class="bg-[#1a0406] p-4 rounded-xl shadow-md flex flex-col items-center justify-center min-h-[400px] relative overflow-hidden group">
+                <img id="img-${config.id}" class="hidden w-full h-full object-cover rounded-lg absolute inset-0 z-0 transition-all duration-300">
                 <div id="ui-${config.id}" class="relative z-10 flex flex-col items-center">
-                    <div id="loader-${config.id}" class="hidden flex-col items-center gap-2 bg-white/90 p-4 rounded-xl">
-                        <div class="loader"></div><p class="font-bold">Generating...</p>
+                    <div id="loader-${config.id}" class="hidden flex-col items-center gap-2 bg-white/90 p-4 rounded-xl shadow-xl">
+                        <div class="loader"></div><p class="font-bold text-[#6b0f1a]">${config.title}</p>
                     </div>
-                    ${config.type === 'ai' ? `<button id="btn-${config.id}" class="bg-[#6b0f1a] text-white font-bold py-3 px-6 rounded-full hover:scale-105 transition shadow-xl border border-white/20">Generate Scene</button>` : ''}
+                    ${config.type === 'ai' ? `<button id="btn-${config.id}" class="bg-[#6b0f1a] text-white font-bold py-3 px-6 rounded-full hover:scale-105 transition shadow-2xl border border-white/20 z-20">Generate: ${config.title}</button>` : ''}
                 </div>
-                <a id="dl-${config.id}" class="hidden absolute bottom-4 z-20 bg-[#6b0f1a] text-white font-bold py-2 px-4 rounded cursor-pointer" download="WorldFest_${config.id}.jpg">Download</a>
+                <a id="dl-${config.id}" class="hidden absolute bottom-4 z-20 bg-[#6b0f1a] text-white font-bold py-2 px-4 rounded shadow-md cursor-pointer hover:bg-red-800" download="WorldFest_${config.id}.jpg">Download</a>
             </div>`;
         gallery.insertAdjacentHTML('beforeend', itemHtml);
     }
@@ -203,12 +214,10 @@
             
             const data = await response.json();
             
-            // Check if backend specifically requested a fallback
             if (data.fallbackRecommended || !data.image) {
                  throw new Error("All AI providers busy.");
             }
 
-            // Backend should return standard base64 or a full data URL. Ensure formatting:
             let finalImageUrl = data.image;
             if (!finalImageUrl.startsWith('data:image')) {
                 finalImageUrl = `data:image/jpeg;base64,${data.image}`;
@@ -217,13 +226,12 @@
             // Update UI on success
             const imgEl = document.getElementById(`img-${config.id}`);
             imgEl.src = finalImageUrl;
-            imgEl.classList.remove('opacity-30', 'blur-sm', 'grayscale');
+            imgEl.classList.remove('opacity-70', 'blur-sm'); // Remove placeholder dimming
             document.getElementById(`loader-${config.id}`).classList.add('hidden');
             document.getElementById(`dl-${config.id}`).href = finalImageUrl;
             document.getElementById(`dl-${config.id}`).classList.remove('hidden');
 
         } catch (error) {
-            // SHOW FALLBACK MODAL ON ANY ERROR
             document.getElementById(`loader-${config.id}`).classList.add('hidden');
             document.getElementById(`btn-${config.id}`).classList.remove('hidden');
             currentFailedConfig = config;
@@ -242,7 +250,6 @@
         closeModal();
         const config = currentFailedConfig;
         
-        // Show loader again
         document.getElementById(`btn-${config.id}`).classList.add('hidden');
         document.getElementById(`loader-${config.id}`).classList.remove('hidden');
 
@@ -251,7 +258,7 @@
             
             const imgEl = document.getElementById(`img-${config.id}`);
             imgEl.src = finalDataUrl;
-            imgEl.classList.remove('opacity-30', 'blur-sm', 'grayscale');
+            imgEl.classList.remove('opacity-70', 'blur-sm');
             
             document.getElementById(`loader-${config.id}`).classList.add('hidden');
             document.getElementById(`dl-${config.id}`).href = finalDataUrl;
@@ -268,7 +275,6 @@
             const canvas = document.getElementById('processingCanvas');
             const ctx = canvas.getContext('2d');
             
-            // Set 36x48 Ratio
             const WIDTH = 1080;
             const HEIGHT = 1440;
             canvas.width = WIDTH;
@@ -276,38 +282,30 @@
 
             const userImg = new Image();
             userImg.onload = () => {
-                // 1. Draw User Image (Scaled to cover center)
                 const scale = Math.max(WIDTH / userImg.width, HEIGHT / userImg.height);
                 const x = (WIDTH / 2) - (userImg.width / 2) * scale;
                 const y = (HEIGHT / 2) - (userImg.height / 2) * scale;
                 ctx.drawImage(userImg, x, y, userImg.width * scale, userImg.height * scale);
 
-                // Add slight dimming to make overlay and text pop
                 ctx.fillStyle = "rgba(0,0,0,0.2)";
                 ctx.fillRect(0,0,WIDTH,HEIGHT);
 
-                // 2. Draw WorldFest WEBP Overlay
                 const overlayImg = new Image();
                 overlayImg.crossOrigin = "anonymous"; 
                 overlayImg.onload = () => {
                     ctx.drawImage(overlayImg, 0, 0, WIDTH, HEIGHT);
 
-                    // 3. Draw Prompt Text around the border margins (Top & Bottom)
                     ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
                     ctx.font = "bold 20px 'Inter', sans-serif";
                     ctx.textAlign = "center";
                     ctx.textBaseline = "middle";
                     
-                    // Simple word wrap to keep text out of the middle
                     const words = promptText.toUpperCase().split(' ');
                     let topLines = [];
                     let bottomLines = [];
                     let currentLine = words[0];
-                    
-                    // Split words roughly in half for top and bottom borders
                     const midPoint = Math.floor(words.length / 2);
                     
-                    // Build Top Text (Top 120px margin)
                     for (let i = 1; i < midPoint; i++) {
                         let width = ctx.measureText(currentLine + " " + words[i]).width;
                         if (width < WIDTH - 100) {
@@ -319,7 +317,6 @@
                     }
                     topLines.push(currentLine + "...");
                     
-                    // Build Bottom Text (Bottom 120px margin)
                     currentLine = "..." + words[midPoint];
                     for (let i = midPoint + 1; i < words.length; i++) {
                         let width = ctx.measureText(currentLine + " " + words[i]).width;
@@ -332,21 +329,18 @@
                     }
                     bottomLines.push(currentLine);
 
-                    // Draw lines at Top
                     let startY = 60;
                     topLines.forEach(line => {
                         ctx.fillText(line, WIDTH / 2, startY);
                         startY += 30;
                     });
 
-                    // Draw lines at Bottom
                     startY = HEIGHT - (bottomLines.length * 30) - 40;
                     bottomLines.forEach(line => {
                         ctx.fillText(line, WIDTH / 2, startY);
                         startY += 30;
                     });
 
-                    // Resolve base64
                     resolve(canvas.toDataURL('image/jpeg', 0.95));
                 };
                 overlayImg.onerror = () => reject("Failed to load overlay WEBP");
