@@ -77,7 +77,10 @@
     // --- APP STATE ---
     // REMEMBER TO UPDATE YOUR CLOUDFLARE WORKER URL HERE:
     const WORKER_URL = "https://worldfest-make-a-scene.message-0ad.workers.dev"; 
-    const OVERLAY_URL = "https://flix.worldfest.org/web/image/1303-66b22058/WF59_36x48_BLANK-02.webp";
+    
+    // UPDATED: Proxied through the Cloudflare worker to bypass strict CORS blocks
+    const OVERLAY_URL = WORKER_URL + "/overlay";
+    
     let currentUserImage = null;
     let currentFailedConfig = null;
     let activePasscode = "";
