@@ -43,6 +43,19 @@
             <section class="bg-white p-6 rounded-xl shadow-sm border border-red-100">
                 <h2 class="text-2xl font-bold mb-4 font-anton tracking-wide">Upload Your Photo</h2>
                 <p class="mb-4 text-gray-700">Upload a clear picture of yourself to cast yourself into these iconic movie moments.</p>
+                
+                <!-- AI PROVIDER SELECTOR -->
+                <div class="mb-6 bg-red-50 p-4 rounded-lg border border-[#6b0f1a]/20">
+                    <label class="block text-sm font-bold text-[#6b0f1a] mb-2">Debug: Select AI Provider</label>
+                    <select id="aiProvider" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6b0f1a]">
+                        <option value="auto">Auto-Routing (Try all)</option>
+                        <option value="gemini">Gemini API Only</option>
+                        <option value="vertex">Vertex API Only</option>
+                        <option value="replicate">Replicate API Only</option>
+                        <option value="xai">xAI Only</option>
+                    </select>
+                </div>
+
                 <label class="flex flex-col items-center justify-center w-full h-64 border-2 border-[#6b0f1a] border-dashed rounded-xl cursor-pointer bg-red-50 hover:bg-red-100 transition">
                     <div class="flex flex-col items-center justify-center pt-5 pb-6">
                         <svg class="w-12 h-12 mb-4 text-[#6b0f1a]" fill="none" viewBox="0 0 20 16" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/></svg>
@@ -64,7 +77,7 @@
         <div class="bg-white p-8 rounded-xl max-w-lg w-full text-center shadow-2xl">
             <svg class="w-16 h-16 text-yellow-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
             <h3 class="text-2xl font-bold mb-2">AI Servers Busy</h3>
-            <p class="text-gray-600 mb-6">Our generative AI servers are currently experiencing high traffic and could not process this scene.</p>
+            <p class="text-gray-600 mb-6">Our generative AI servers are currently experiencing high traffic and could not process this scene. Please check console logs for details.</p>
             <button onclick="executeDefaultGenerator()" class="w-full bg-[#6b0f1a] text-white font-bold py-3 px-4 rounded hover:bg-red-800 transition mb-3">Generate Default Image Poster</button>
             <button onclick="closeModal()" class="w-full bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded hover:bg-gray-300 transition">Cancel</button>
         </div>
@@ -75,17 +88,17 @@
 
 <script>
     // --- APP STATE ---
-    // REMEMBER TO UPDATE YOUR CLOUDFLARE WORKER URL HERE:
-    const WORKER_URL = "https://worldfest-make-a-scene.message-0ad.workers.dev"; 
+    // UPDATED WORKER URL
+    const WORKER_URL = "https://wf-mas-2.message-0ad.workers.dev"; 
     
-    // UPDATED: Proxied through the Cloudflare worker to bypass strict CORS blocks
+    // Proxied through the Cloudflare worker to bypass strict CORS blocks
     const OVERLAY_URL = WORKER_URL + "/overlay";
     
     let currentUserImage = null;
     let currentFailedConfig = null;
     let activePasscode = "";
 
-    // Added specific preview URLs for the placeholders
+    // Added specific preview URLs for the placeholders based on latest spec
     const scenesConfig = [
         { 
             id: "original", type: "original", title: "Make A Scene",
@@ -180,11 +193,15 @@
         const itemHtml = `
             <div class="bg-[#1a0406] p-4 rounded-xl shadow-md flex flex-col items-center justify-center min-h-[400px] relative overflow-hidden group">
                 <img id="img-${config.id}" class="hidden w-full h-full object-cover rounded-lg absolute inset-0 z-0 transition-all duration-300">
-                <div id="ui-${config.id}" class="relative z-10 flex flex-col items-center">
-                    <div id="loader-${config.id}" class="hidden flex-col items-center gap-2 bg-white/90 p-4 rounded-xl shadow-xl">
+                <div id="ui-${config.id}" class="relative z-10 flex flex-col items-center w-full">
+                    
+                    <!-- Top Right Badges -->
+                    <div id="badge-${config.id}" class="hidden absolute -top-2 -right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded shadow">AI</div>
+
+                    <div id="loader-${config.id}" class="hidden flex-col items-center gap-2 bg-white/90 p-4 rounded-xl shadow-xl mt-12">
                         <div class="loader"></div><p class="font-bold text-[#6b0f1a]">${config.title}</p>
                     </div>
-                    ${config.type === 'ai' ? `<button id="btn-${config.id}" class="bg-[#6b0f1a] text-white font-bold py-3 px-6 rounded-full hover:scale-105 transition shadow-2xl border border-white/20 z-20">Generate: ${config.title}</button>` : ''}
+                    ${config.type === 'ai' ? `<button id="btn-${config.id}" class="bg-[#6b0f1a] text-white font-bold py-3 px-6 rounded-full hover:scale-105 transition shadow-2xl border border-white/20 z-20 mt-12">Generate: ${config.title}</button>` : ''}
                 </div>
                 <a id="dl-${config.id}" class="hidden absolute bottom-4 z-20 bg-[#6b0f1a] text-white font-bold py-2 px-4 rounded shadow-md cursor-pointer hover:bg-red-800" download="WorldFest_${config.id}.jpg">Download</a>
             </div>`;
@@ -195,11 +212,15 @@
     async function triggerAIGeneration(config) {
         document.getElementById(`btn-${config.id}`).classList.add('hidden');
         document.getElementById(`loader-${config.id}`).classList.remove('hidden');
+        
+        const selectedProvider = document.getElementById('aiProvider').value;
 
         try {
             // Strip the data:image prefix for the backend
             const base64Data = currentUserImage.split(',')[1];
             
+            console.log(`[DEBUG] Attempting generation for ${config.id} using provider: ${selectedProvider}`);
+
             const response = await fetch(WORKER_URL, {
                 method: 'POST',
                 headers: { 
@@ -208,17 +229,24 @@
                 },
                 body: JSON.stringify({ 
                     imageDataUrl: base64Data, 
+                    sceneImageUrl: config.previewUrl, // Pass reference image!
                     prompt: config.prompt,
-                    sceneId: config.id
+                    sceneId: config.id,
+                    providerOverride: selectedProvider
                 })
             });
 
-            if (!response.ok) throw new Error("API Failure");
+            if (!response.ok) throw new Error("Worker endpoint failed (Status " + response.status + ")");
             
             const data = await response.json();
             
+            // Console logging debug steps passed back from the worker
+            if (data.debugLogs) {
+                console.log(`[DEBUG] Worker Logs for ${config.id}:`, data.debugLogs);
+            }
+
             if (data.fallbackRecommended || !data.image) {
-                 throw new Error("All AI providers busy.");
+                 throw new Error("Worker responded but recommended fallback.");
             }
 
             let finalImageUrl = data.image;
@@ -234,7 +262,13 @@
             document.getElementById(`dl-${config.id}`).href = finalImageUrl;
             document.getElementById(`dl-${config.id}`).classList.remove('hidden');
 
+            // Show provider badge
+            const badge = document.getElementById(`badge-${config.id}`);
+            badge.innerText = data.provider;
+            badge.classList.remove('hidden');
+
         } catch (error) {
+            console.error(`[ERROR] Failed to generate ${config.id}:`, error);
             document.getElementById(`loader-${config.id}`).classList.add('hidden');
             document.getElementById(`btn-${config.id}`).classList.remove('hidden');
             currentFailedConfig = config;
@@ -266,6 +300,10 @@
             document.getElementById(`loader-${config.id}`).classList.add('hidden');
             document.getElementById(`dl-${config.id}`).href = finalDataUrl;
             document.getElementById(`dl-${config.id}`).classList.remove('hidden');
+            
+            const badge = document.getElementById(`badge-${config.id}`);
+            badge.innerText = "Fallback";
+            badge.classList.remove('hidden');
         } catch (err) {
             alert("Error generating default image.");
             document.getElementById(`loader-${config.id}`).classList.add('hidden');
@@ -346,7 +384,7 @@
 
                     resolve(canvas.toDataURL('image/jpeg', 0.95));
                 };
-                overlayImg.onerror = () => reject("Failed to load overlay WEBP");
+                overlayImg.onerror = () => reject("Failed to load overlay PNG");
                 overlayImg.src = overlaySrc;
             };
             userImg.onerror = () => reject("Failed to load user image");
