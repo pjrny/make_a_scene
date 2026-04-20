@@ -1,6 +1,12 @@
-<meta charset="utf-8">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Make a Scene</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&display=swap" rel="stylesheet">
   <style>
     :root{
       --bg:#faf7f5;
@@ -22,8 +28,8 @@
     .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:0 10px 28px rgba(0,0,0,.04)}
     .scenes{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
     @media (max-width:640px){.scenes{grid-template-columns:1fr}}
-    .scene{border:2px solid transparent;border-radius:16px;overflow:hidden;cursor:pointer;background:#fff;transition:.15s ease}
-    .scene.active{border-color:var(--brand);box-shadow:0 0 0 3px rgba(141,15,26,.12)}
+    .scene{border:2px solid transparent;border-radius:16px;overflow:hidden;cursor:pointer;background:#fff;transition:.15s ease;transform:scale(1)}
+    .scene.active{border-color:var(--brand);box-shadow:0 0 0 3px rgba(141,15,26,.12);transform:scale(1.02)}
     .scene img{display:block;width:100%;height:180px;object-fit:cover;background:#eee}
     .scene .meta{padding:10px 12px 12px}
     .scene .meta strong{display:block}
@@ -33,14 +39,15 @@
     .btn{border:none;border-radius:999px;padding:12px 18px;font:inherit;font-weight:700;cursor:pointer}
     .btn-primary{background:linear-gradient(180deg,var(--brand2),var(--brand));color:#fff}
     .btn-secondary{background:#f2eded;color:#3f3131}
+    .btn[disabled]{opacity:.55;cursor:not-allowed}
     .out{min-height:360px;border:1px dashed var(--line);border-radius:16px;display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden}
-    .out img{width:100%;height:auto;display:block}
-    .status{font-size:14px;color:var(--muted);margin-top:10px;white-space:pre-wrap}
+    .out img,.out canvas{width:100%;height:auto;display:block}
+    .status{font-size:14px;color:var(--muted);margin-top:10px;white-space:pre-wrap;max-height:240px;overflow:auto;background:#fcf8f8;border:1px solid var(--line);padding:10px;border-radius:12px}
     .note{padding:12px;border-radius:12px;background:#f8f2f2;border:1px solid var(--line);color:#5b4444;font-size:14px}
     .terms{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:14px}
   </style>
-
-
+</head>
+<body>
   <div class="wrap">
     <h1>Make a Scene</h1>
     <div class="sub">Upload a photo, choose a movie scene, and insert yourself into the shot.</div>
@@ -57,7 +64,6 @@
         <select id="provider">
           <option value="auto">Auto (recommended)</option>
           <option value="gemini">Gemini</option>
-          <option value="vertex">Vertex</option>
           <option value="xai">xAI</option>
           <option value="replicate">Replicate</option>
         </select>
@@ -73,16 +79,16 @@
           <button class="btn btn-secondary" id="resetBtn" type="button">Reset</button>
         </div>
 
-        <div class="status" id="status"></div>
+        <div class="status" id="status">Ready.</div>
       </div>
 
       <div class="card">
         <h2 style="margin-top:0">Result</h2>
         <div class="out" id="output">
-          <div style="padding:20px;text-align:center;color:#7b6868">Your generated scene will appear here.</div>
+          <div style="padding:20px;text-align:center;color:#7b6868">Your generated poster will appear here.</div>
         </div>
         <div class="row" style="margin-top:12px">
-          <button class="btn btn-secondary" id="downloadBtn" type="button" disabled="">Download</button>
+          <button class="btn btn-secondary" id="downloadBtn" type="button" disabled>Download</button>
         </div>
         <div class="note" style="margin-top:16px">
           Best results: one face, clear lighting, minimal obstruction, medium close-up or portrait photo.
@@ -93,17 +99,19 @@
 
   <script>
     const WORKER_URL = "https://worldfest-make-a-scene.message-0ad.workers.dev";
+    const OVERLAY_BLANK_URL = "https://flix.worldfest.org/web/image/1355-66407f22/WF59_36x48_BLANK-04.png";
 
     const SCENES = [
-      { id: "scene", title: "Make a Scene", desc: "Dramatic deli-table energy", img: "https://flix.worldfest.org/web/image/1320-d9458722/MAS1.png" },
-      { id: "entrance", title: "Make an Entrance", desc: "Confident carnival reveal", img: "https://flix.worldfest.org/web/image/1319-3f8820d2/MAS2.png" },
-      { id: "exit", title: "Make an Exit", desc: "Black-and-white airport goodbye", img: "https://flix.worldfest.org/web/image/1318-4fe37bdf/MAS3.png" },
-      { id: "loud", title: "Make It Loud", desc: "Explosive newsroom confrontation", img: "https://flix.worldfest.org/web/image/1317-02df90ca/MAS4.png" },
-      { id: "personal", title: "Make It Personal", desc: "Sword-duel intensity", img: "https://flix.worldfest.org/web/image/1316-265611e6/MAS5.png" }
+      { id: "scene", title: "MAKE A SCENE", desc: "Dramatic deli-table energy", img: "https://flix.worldfest.org/web/image/1320-d9458722/MAS1.png" },
+      { id: "entrance", title: "MAKE AN ENTRANCE", desc: "Confident carnival reveal", img: "https://flix.worldfest.org/web/image/1319-3f8820d2/MAS2.png" },
+      { id: "exit", title: "MAKE AN EXIT", desc: "Black-and-white airport goodbye", img: "https://flix.worldfest.org/web/image/1318-4fe37bdf/MAS3.png" },
+      { id: "loud", title: "MAKE IT LOUD", desc: "Explosive newsroom confrontation", img: "https://flix.worldfest.org/web/image/1317-02df90ca/MAS4.png" },
+      { id: "personal", title: "MAKE IT PERSONAL", desc: "Sword-duel intensity", img: "https://flix.worldfest.org/web/image/1316-265611e6/MAS5.png" }
     ];
 
     let selectedScene = SCENES[0].id;
     let latestBlob = null;
+    let replicateCooldownTimer = null;
 
     const scenesEl = document.getElementById("scenes");
     const photoEl = document.getElementById("photo");
@@ -115,6 +123,10 @@
     const downloadBtn = document.getElementById("downloadBtn");
     const statusEl = document.getElementById("status");
     const outputEl = document.getElementById("output");
+
+    function getSceneMeta() {
+      return SCENES.find(s => s.id === selectedScene);
+    }
 
     function renderScenes() {
       scenesEl.innerHTML = "";
@@ -147,17 +159,20 @@
       agreeTermsEl.checked = false;
       latestBlob = null;
       downloadBtn.disabled = true;
-      outputEl.innerHTML = `<div style="padding:20px;text-align:center;color:#7b6868">Your generated scene will appear here.</div>`;
-      setStatus("");
+      outputEl.innerHTML = `<div style="padding:20px;text-align:center;color:#7b6868">Your generated poster will appear here.</div>`;
+      setStatus("Ready.");
     }
 
-    async function fileToDataUrl(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+    async function resizeImage(file) {
+      const img = await createImageBitmap(file);
+      const canvas = document.createElement("canvas");
+      const max = 1200;
+      const scale = Math.min(max / img.width, max / img.height, 1);
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", 0.88);
     }
 
     function getPayload(providerMode, accuracyMode, imageDataUrl) {
@@ -169,26 +184,110 @@
       };
     }
 
+    async function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    }
+
+    function fitText(ctx, text, maxWidth, startSize) {
+      let size = startSize;
+      ctx.font = `${size}px Anton, Arial Black, sans-serif`;
+      while (size > 24 && ctx.measureText(text).width > maxWidth) {
+        size -= 2;
+        ctx.font = `${size}px Anton, Arial Black, sans-serif`;
+      }
+      return size;
+    }
+
+    async function composePoster(rawDataUrl, sceneTitle, overlayUrl) {
+      const baseImg = await loadImage(rawDataUrl);
+      const overlayImg = await loadImage(overlayUrl || OVERLAY_BLANK_URL);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = 1080;
+      canvas.height = 1440;
+      const ctx = canvas.getContext("2d");
+
+      // scene image cover
+      const scale = Math.max(canvas.width / baseImg.width, canvas.height / baseImg.height);
+      const drawW = baseImg.width * scale;
+      const drawH = baseImg.height * scale;
+      const dx = (canvas.width - drawW) / 2;
+      const dy = (canvas.height - drawH) / 2;
+
+      ctx.drawImage(baseImg, dx, dy, drawW, drawH);
+
+      // overlay frame
+      ctx.drawImage(overlayImg, 0, 0, canvas.width, canvas.height);
+
+      // title
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const titleBox = { x: 110, y: 92, w: 810, h: 108 };
+      const fontSize = fitText(ctx, sceneTitle, titleBox.w - 40, 110);
+      ctx.font = `${fontSize}px Anton, Arial Black, sans-serif`;
+
+      // slight shadow for readability
+      ctx.shadowColor = "rgba(0,0,0,0.28)";
+      ctx.shadowBlur = 4;
+      ctx.fillText(sceneTitle, titleBox.x + titleBox.w / 2, titleBox.y + titleBox.h / 2 + 2);
+
+      ctx.shadowBlur = 0;
+
+      return canvas;
+    }
+
+    async function canvasToBlob(canvas) {
+      return new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    }
+
+    function startReplicateCooldown(seconds = 12) {
+      accurateBtn.disabled = true;
+      let left = seconds;
+      accurateBtn.textContent = `Replicate cooling down (${left}s)`;
+
+      clearInterval(replicateCooldownTimer);
+      replicateCooldownTimer = setInterval(() => {
+        left -= 1;
+        if (left <= 0) {
+          clearInterval(replicateCooldownTimer);
+          accurateBtn.disabled = false;
+          accurateBtn.textContent = "Try More Accurate Replacement";
+          return;
+        }
+        accurateBtn.textContent = `Replicate cooling down (${left}s)`;
+      }, 1000);
+    }
+
     async function runGeneration(accuracyMode) {
       const file = photoEl.files[0];
       if (!file) {
         setStatus("Please upload a photo first.");
         return;
       }
+
       if (!agreeTermsEl.checked) {
         setStatus("Please agree to the terms before generating.");
         return;
       }
 
       const providerMode = providerEl.value || "auto";
+
       generateBtn.disabled = true;
       accurateBtn.disabled = true;
       downloadBtn.disabled = true;
-      setStatus("Generating...");
-      outputEl.innerHTML = `<div style="padding:20px;text-align:center;color:#7b6868">Generating your image...</div>`;
+      setStatus("Preparing image...\nResizing upload to reduce payload...\nStarting generation...");
+      outputEl.innerHTML = `<div style="padding:20px;text-align:center;color:#7b6868">Generating poster...\nThis may take 5–20 seconds.</div>`;
 
       try {
-        const imageDataUrl = await fileToDataUrl(file);
+        const imageDataUrl = await resizeImage(file);
+
         const res = await fetch(WORKER_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -203,19 +302,27 @@
           throw new Error("Invalid JSON response: " + text);
         }
 
-        if (!res.ok || !data.ok || !data.imageBase64) {
+        if (!res.ok || !data.imageBase64) {
           const debug = (data.debugLogs || []).join("\n");
           setStatus("Generation failed.\n\n" + (debug || data.error || "Unknown error"));
+
+          if ((debug || "").includes("429") || (debug || "").includes("rate limit")) {
+            startReplicateCooldown(12);
+          }
+
           outputEl.innerHTML = `<div style="padding:20px;text-align:center;color:#7b6868">No image returned.</div>`;
           return;
         }
 
         const mime = data.mimeType || "image/png";
-        const imgSrc = `data:${mime};base64,${data.imageBase64}`;
-        outputEl.innerHTML = `<img src="${imgSrc}" alt="Generated scene">`;
+        const rawSrc = `data:${mime};base64,${data.imageBase64}`;
+        const sceneMeta = getSceneMeta();
+        const canvas = await composePoster(rawSrc, sceneMeta.title, data.overlayBlankUrl || OVERLAY_BLANK_URL);
 
-        const blob = await (await fetch(imgSrc)).blob();
-        latestBlob = blob;
+        outputEl.innerHTML = "";
+        outputEl.appendChild(canvas);
+
+        latestBlob = await canvasToBlob(canvas);
         downloadBtn.disabled = false;
 
         const debugText = data.debugLogs ? "\n\n" + data.debugLogs.join("\n") : "";
@@ -225,7 +332,9 @@
         outputEl.innerHTML = `<div style="padding:20px;text-align:center;color:#7b6868">Unexpected error.</div>`;
       } finally {
         generateBtn.disabled = false;
-        accurateBtn.disabled = false;
+        if (!accurateBtn.textContent.includes("cooling down")) {
+          accurateBtn.disabled = false;
+        }
       }
     }
 
@@ -242,9 +351,14 @@
     }
 
     generateBtn.addEventListener("click", () => runGeneration("fast"));
-    accurateBtn.addEventListener("click", () => runGeneration("accurate"));
+    accurateBtn.addEventListener("click", () => {
+      startReplicateCooldown(12);
+      runGeneration("accurate");
+    });
     resetBtn.addEventListener("click", resetUI);
     downloadBtn.addEventListener("click", downloadImage);
 
     renderScenes();
   </script>
+</body>
+</html>
