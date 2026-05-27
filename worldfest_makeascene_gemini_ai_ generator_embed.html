@@ -44,16 +44,25 @@
                 <h2 class="text-2xl font-bold mb-4 font-anton tracking-wide">Upload Your Photo</h2>
                 <p class="mb-4 text-gray-700">Upload a clear picture of yourself to cast yourself into these iconic movie moments.</p>
                 
-                <!-- AI PROVIDER SELECTOR -->
-                <div class="mb-6 bg-red-50 p-4 rounded-lg border border-[#6b0f1a]/20">
-                    <label class="block text-sm font-bold text-[#6b0f1a] mb-2">Debug: Select AI Provider</label>
-                    <select id="aiProvider" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6b0f1a]">
-                        <option value="auto">Auto-Routing (Try all)</option>
-                        <option value="gemini">Gemini API Only</option>
-                        <option value="vertex">Vertex API Only</option>
-                        <option value="replicate">Replicate API Only</option>
-                        <option value="xai">xAI Only</option>
-                    </select>
+                <!-- AI PROVIDER & ACCURACY SELECTOR -->
+                <div class="mb-6 bg-red-50 p-4 rounded-lg border border-[#6b0f1a]/20 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-[#6b0f1a] mb-2">Select AI Provider</label>
+                        <select id="aiProvider" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6b0f1a]">
+                            <option value="auto">Auto (Recommended)</option>
+                            <option value="gemini">Gemini (Fast Preview)</option>
+                            <option value="replicate_seedream">Replicate (Bytedance Seedream)</option>
+                            <option value="replicate_flux">Replicate (Flux Kontext)</option>
+                            <option value="xai">xAI (Scene only - no likeness)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-[#6b0f1a] mb-2">Accuracy Mode</label>
+                        <select id="accuracyMode" class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6b0f1a]">
+                            <option value="fast">Fast (Tries all providers)</option>
+                            <option value="accurate">Accurate (Forces Replicate first)</option>
+                        </select>
+                    </div>
                 </div>
 
                 <label class="flex flex-col items-center justify-center w-full h-64 border-2 border-[#6b0f1a] border-dashed rounded-xl cursor-pointer bg-red-50 hover:bg-red-100 transition">
@@ -76,8 +85,12 @@
     <div id="busyModal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
         <div class="bg-white p-8 rounded-xl max-w-lg w-full text-center shadow-2xl">
             <svg class="w-16 h-16 text-yellow-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-            <h3 class="text-2xl font-bold mb-2">AI Servers Busy</h3>
-            <p class="text-gray-600 mb-6">Our generative AI servers are currently experiencing high traffic and could not process this scene. Please check console logs for details.</p>
+            <h3 class="text-2xl font-bold mb-2">AI Servers Busy or Failed</h3>
+            <p class="text-gray-600 mb-2">Our generative AI servers could not process this scene.</p>
+            
+            <!-- Real-time error details injected here -->
+            <div id="busyModalErrors" class="text-xs text-red-600 bg-red-50 p-3 rounded mb-6 text-left overflow-auto max-h-32 border border-red-100"></div>
+            
             <button onclick="executeDefaultGenerator()" class="w-full bg-[#6b0f1a] text-white font-bold py-3 px-4 rounded hover:bg-red-800 transition mb-3">Generate Default Image Poster</button>
             <button onclick="closeModal()" class="w-full bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded hover:bg-gray-300 transition">Cancel</button>
         </div>
@@ -88,41 +101,41 @@
 
 <script>
     // --- APP STATE ---
-    // UPDATED WORKER URL
     const WORKER_URL = "https://wf-mas-2.message-0ad.workers.dev"; 
     
     // Proxied through the Cloudflare worker to bypass strict CORS blocks
     const OVERLAY_URL = WORKER_URL + "/overlay";
     
     let currentUserImage = null;
+    let currentSubjectHint = null;
     let currentFailedConfig = null;
     let activePasscode = "";
 
-    // Added specific preview URLs for the placeholders based on latest spec
     const scenesConfig = [
         { 
             id: "original", type: "original", title: "Make A Scene",
+            titleLine1: "MAKE", titleLine2: "A SCENE", subtitle: ["Or, come enjoy thousands", "at Houston International", "Film Festival."],
             previewUrl: "https://flix.worldfest.org/web/image/1320-d9458722/MAS1.png"
         },
         {
             id: "entrance", type: "ai", title: "Make An Entrance",
-            previewUrl: "https://flix.worldfest.org/web/image/1319-3f8820d2/MAS2.png",
-            prompt: "Transform this person preserving their identity perfectly. Female: 1950s blonde blowout, leather jacket, cigarette. Male: 1950s greaser pompadour, black t-shirt. Background: 1950s carnival, 'PRETZELS' sign, sunny, 35mm film."
+            titleLine1: "MAKE AN", titleLine2: "ENTRANCE", subtitle: ["Or, come watch", "unforgettable ones", "at Houston International", "Film Festival."],
+            previewUrl: "https://flix.worldfest.org/web/image/1319-3f8820d2/MAS2.png"
         },
         {
             id: "exit", type: "ai", title: "Make An Exit",
-            previewUrl: "https://flix.worldfest.org/web/image/1318-4fe37bdf/MAS3.png",
-            prompt: "Transform this person preserving their identity perfectly. Female: 1940s waves, tailored wool blazer, cloche hat. Male: classic trench coat, fedora hat. Background: Foggy airport tarmac, 1940s airplane, High-contrast Black and White film noir."
+            titleLine1: "MAKE", titleLine2: "AN EXIT", subtitle: ["Or, come watch", "unforgettable farewell moments", "at Houston International", "Film Festival."],
+            previewUrl: "https://flix.worldfest.org/web/image/1318-4fe37bdf/MAS3.png"
         },
         {
             id: "loud", type: "ai", title: "Make It Loud",
-            previewUrl: "https://flix.worldfest.org/web/image/1317-02df90ca/MAS4.png",
-            prompt: "Transform this person preserving their identity perfectly. Female/Male: 1980s hair, thick cable-knit sweater, throwing head back in laughter. Background: Classic New York delicatessen, wooden table, sandwich, warm lighting."
+            titleLine1: "MAKE", titleLine2: "IT LOUD", subtitle: ["Or, come enjoy thousands", "at Houston International", "Film Festival."],
+            previewUrl: "https://flix.worldfest.org/web/image/1317-02df90ca/MAS4.png"
         },
         {
             id: "personal", type: "ai", title: "Make It Personal",
-            previewUrl: "https://flix.worldfest.org/web/image/1316-265611e6/MAS5.png",
-            prompt: "Transform this person preserving their identity perfectly. Female/Male: Rumpled 1970s trench coat, pointing aggressively at the camera, angry expression. Background: 1976 newsroom, wood-paneled wall, world clocks, broadcast phones."
+            titleLine1: "MAKE IT", titleLine2: "PERSONAL", subtitle: ["Or, come enjoy thousands", "at Houston International", "Film Festival."],
+            previewUrl: "https://flix.worldfest.org/web/image/1316-265611e6/MAS5.png"
         }
     ];
 
@@ -139,6 +152,75 @@
         }
     }
 
+    // --- FACE DETECTION & AUTO CENTERING ---
+    async function detectFaceHint(bitmap) {
+        try {
+            if (!("FaceDetector" in window)) return null;
+
+            const detector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
+            const faces = await detector.detect(bitmap);
+            if (!faces || !faces.length) return null;
+
+            const box = faces[0].boundingBox;
+            return {
+                faceCenterX: +(box.x + box.width / 2) / bitmap.width,
+                faceCenterY: +(box.y + box.height / 2) / bitmap.height,
+                faceWidthRatio: +box.width / bitmap.width,
+                faceHeightRatio: +box.height / bitmap.height
+            };
+        } catch {
+            return null;
+        }
+    }
+
+    async function resizeAndCenterImage(file) {
+        const bitmap = await createImageBitmap(file);
+        const faceHint = await detectFaceHint(bitmap);
+
+        const targetW = 900;
+        const targetH = 1200;
+        const canvas = document.createElement("canvas");
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext("2d");
+
+        let cropX = 0;
+        let cropY = 0;
+        let cropW = bitmap.width;
+        let cropH = bitmap.height;
+
+        const targetRatio = targetW / targetH;
+        const sourceRatio = bitmap.width / bitmap.height;
+
+        // Calculate Crop 
+        if (sourceRatio > targetRatio) {
+            cropH = bitmap.height;
+            cropW = cropH * targetRatio;
+        } else {
+            cropW = bitmap.width;
+            cropH = cropW / targetRatio;
+        }
+
+        // Center on Face if detected, otherwise center middle
+        if (faceHint) {
+            const faceX = faceHint.faceCenterX * bitmap.width;
+            const faceY = faceHint.faceCenterY * bitmap.height;
+
+            cropX = Math.max(0, Math.min(bitmap.width - cropW, faceX - cropW / 2));
+            cropY = Math.max(0, Math.min(bitmap.height - cropH, faceY - cropH * 0.38));
+        } else {
+            cropX = Math.max(0, (bitmap.width - cropW) / 2);
+            cropY = Math.max(0, (bitmap.height - cropH) / 2);
+        }
+
+        ctx.drawImage(bitmap, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+
+        return {
+            imageDataUrl: canvas.toDataURL("image/jpeg", 0.9),
+            subjectHint: faceHint
+        };
+    }
+
     // --- UPLOAD & PROCESSING ---
     document.getElementById('imageUpload').addEventListener('change', async (e) => {
         const file = e.target.files[0];
@@ -149,15 +231,22 @@
         gallery.innerHTML = ''; 
 
         try {
-            const base64Str = await fileToBase64(file);
-            currentUserImage = base64Str; // Save globally for fallbacks
+            // Use the advanced cropping & face detection
+            const prepared = await resizeAndCenterImage(file);
+            currentUserImage = prepared.imageDataUrl; 
+            currentSubjectHint = prepared.subjectHint;
             
-            // 1. Original (Auto-generates from uploaded image)
+            // 1. Original
             createGalleryItem(scenesConfig[0]);
             document.getElementById(`loader-${scenesConfig[0].id}`).classList.add('hidden');
             const imgEl = document.getElementById(`img-${scenesConfig[0].id}`);
-            imgEl.src = base64Str;
+            
+            // Instantly apply the master overlay to the original image
+            const originalWithOverlay = await buildMasterCanvas(currentUserImage, OVERLAY_URL, scenesConfig[0]);
+            imgEl.src = originalWithOverlay;
             imgEl.classList.remove('hidden');
+            document.getElementById(`dl-${scenesConfig[0].id}`).href = originalWithOverlay;
+            document.getElementById(`dl-${scenesConfig[0].id}`).classList.remove('hidden');
 
             // 2. Setup Pre-defined Thumbnail Placeholders
             for (let i = 1; i < scenesConfig.length; i++) {
@@ -167,7 +256,6 @@
                 const btn = document.getElementById(`btn-${config.id}`);
                 const img = document.getElementById(`img-${config.id}`);
                 
-                // Show predefined preview URL with slight blur
                 img.src = config.previewUrl;
                 img.classList.remove('hidden');
                 img.classList.add('opacity-70', 'blur-sm');
@@ -176,17 +264,9 @@
             }
         } catch (err) {
             alert("Error processing upload.");
+            console.error(err);
         }
     });
-
-    function fileToBase64(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = error => reject(error);
-        });
-    }
 
     function createGalleryItem(config) {
         const gallery = document.getElementById('gallery');
@@ -194,10 +274,7 @@
             <div class="bg-[#1a0406] p-4 rounded-xl shadow-md flex flex-col items-center justify-center min-h-[400px] relative overflow-hidden group">
                 <img id="img-${config.id}" class="hidden w-full h-full object-cover rounded-lg absolute inset-0 z-0 transition-all duration-300">
                 <div id="ui-${config.id}" class="relative z-10 flex flex-col items-center w-full">
-                    
-                    <!-- Top Right Badges -->
                     <div id="badge-${config.id}" class="hidden absolute -top-2 -right-2 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded shadow">AI</div>
-
                     <div id="loader-${config.id}" class="hidden flex-col items-center gap-2 bg-white/90 p-4 rounded-xl shadow-xl mt-12">
                         <div class="loader"></div><p class="font-bold text-[#6b0f1a]">${config.title}</p>
                     </div>
@@ -213,62 +290,79 @@
         document.getElementById(`btn-${config.id}`).classList.add('hidden');
         document.getElementById(`loader-${config.id}`).classList.remove('hidden');
         
-        const selectedProvider = document.getElementById('aiProvider').value;
+        const providerMode = document.getElementById('aiProvider').value;
+        const accuracyMode = document.getElementById('accuracyMode').value;
 
         try {
-            // Strip the data:image prefix for the backend
-            const base64Data = currentUserImage.split(',')[1];
-            
-            console.log(`[DEBUG] Attempting generation for ${config.id} using provider: ${selectedProvider}`);
+            console.log(`[DEBUG] Requesting ${config.id} | Provider: ${providerMode} | Mode: ${accuracyMode}`);
 
             const response = await fetch(WORKER_URL, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
-                    'X-App-Password': activePasscode // Pass the secure auth token
+                    'X-App-Password': activePasscode 
                 },
                 body: JSON.stringify({ 
-                    imageDataUrl: base64Data, 
-                    sceneImageUrl: config.previewUrl, // Pass reference image!
-                    prompt: config.prompt,
+                    imageDataUrl: currentUserImage, 
                     sceneId: config.id,
-                    providerOverride: selectedProvider
+                    providerMode: providerMode,
+                    accuracyMode: accuracyMode,
+                    subjectHint: currentSubjectHint
                 })
             });
 
-            if (!response.ok) throw new Error("Worker endpoint failed (Status " + response.status + ")");
+            let data;
+            try {
+                data = await response.json();
+            } catch (e) {
+                const rawText = await response.text();
+                throw new Error("Worker endpoint failed to return JSON: " + rawText.slice(0, 200));
+            }
             
-            const data = await response.json();
-            
-            // Console logging debug steps passed back from the worker
             if (data.debugLogs) {
                 console.log(`[DEBUG] Worker Logs for ${config.id}:`, data.debugLogs);
             }
 
-            if (data.fallbackRecommended || !data.image) {
-                 throw new Error("Worker responded but recommended fallback.");
+            // Check if worker threw a 502/Fallback 
+            if (!response.ok || data.fallbackRecommended || !data.imageBase64) {
+                 
+                 // Compile reasons for failure to show in modal
+                 let errorString = "Unknown API Error.";
+                 if (data.failures && data.failures.length > 0) {
+                     errorString = data.failures.map(f => `<strong>${f.provider.toUpperCase()}:</strong> ${f.error}`).join('<br>');
+                 } else if (data.error) {
+                     errorString = data.error;
+                 }
+
+                 document.getElementById('busyModalErrors').innerHTML = errorString;
+                 document.getElementById(`loader-${config.id}`).classList.add('hidden');
+                 document.getElementById(`btn-${config.id}`).classList.remove('hidden');
+                 currentFailedConfig = config;
+                 document.getElementById('busyModal').classList.remove('hidden');
+                 document.getElementById('busyModal').classList.add('flex');
+                 return; 
             }
 
-            let finalImageUrl = data.image;
-            if (!finalImageUrl.startsWith('data:image')) {
-                finalImageUrl = `data:image/jpeg;base64,${data.image}`;
-            }
+            let finalAiImageUrl = `data:${data.mimeType || 'image/jpeg'};base64,${data.imageBase64}`;
+            
+            // Process the returned AI image through our Canvas to add the Master Frame & Typography
+            const finalPosterUrl = await buildMasterCanvas(finalAiImageUrl, OVERLAY_URL, config);
             
             // Update UI on success
             const imgEl = document.getElementById(`img-${config.id}`);
-            imgEl.src = finalImageUrl;
-            imgEl.classList.remove('opacity-70', 'blur-sm'); // Remove placeholder dimming
+            imgEl.src = finalPosterUrl;
+            imgEl.classList.remove('opacity-70', 'blur-sm'); 
             document.getElementById(`loader-${config.id}`).classList.add('hidden');
-            document.getElementById(`dl-${config.id}`).href = finalImageUrl;
+            document.getElementById(`dl-${config.id}`).href = finalPosterUrl;
             document.getElementById(`dl-${config.id}`).classList.remove('hidden');
 
-            // Show provider badge
             const badge = document.getElementById(`badge-${config.id}`);
             badge.innerText = data.provider;
             badge.classList.remove('hidden');
 
         } catch (error) {
             console.error(`[ERROR] Failed to generate ${config.id}:`, error);
+            document.getElementById('busyModalErrors').innerHTML = `<strong>Network Error:</strong> ${error.message}`;
             document.getElementById(`loader-${config.id}`).classList.add('hidden');
             document.getElementById(`btn-${config.id}`).classList.remove('hidden');
             currentFailedConfig = config;
@@ -277,7 +371,7 @@
         }
     }
 
-    // --- FALLBACK: DEFAULT IMAGE GENERATOR ---
+    // --- FALLBACK & MASTER CANVAS GENERATOR ---
     function closeModal() {
         document.getElementById('busyModal').classList.add('hidden');
         document.getElementById('busyModal').classList.remove('flex');
@@ -286,12 +380,12 @@
     async function executeDefaultGenerator() {
         closeModal();
         const config = currentFailedConfig;
-        
         document.getElementById(`btn-${config.id}`).classList.add('hidden');
         document.getElementById(`loader-${config.id}`).classList.remove('hidden');
 
         try {
-            const finalDataUrl = await buildDefaultCanvas(currentUserImage, OVERLAY_URL, config.prompt);
+            // Because AI failed, we just use the user's original face image for the background
+            const finalDataUrl = await buildMasterCanvas(currentUserImage, OVERLAY_URL, config);
             
             const imgEl = document.getElementById(`img-${config.id}`);
             imgEl.src = finalDataUrl;
@@ -305,90 +399,70 @@
             badge.innerText = "Fallback";
             badge.classList.remove('hidden');
         } catch (err) {
-            alert("Error generating default image.");
+            alert("Error generating image.");
             document.getElementById(`loader-${config.id}`).classList.add('hidden');
             document.getElementById(`btn-${config.id}`).classList.remove('hidden');
         }
     }
 
-    function buildDefaultCanvas(userImgSrc, overlaySrc, promptText) {
+    function buildMasterCanvas(baseImgSrc, overlaySrc, config) {
         return new Promise((resolve, reject) => {
             const canvas = document.getElementById('processingCanvas');
             const ctx = canvas.getContext('2d');
             
+            // Standard vertical poster resolution
             const WIDTH = 1080;
             const HEIGHT = 1440;
             canvas.width = WIDTH;
             canvas.height = HEIGHT;
 
-            const userImg = new Image();
-            userImg.onload = () => {
-                const scale = Math.max(WIDTH / userImg.width, HEIGHT / userImg.height);
-                const x = (WIDTH / 2) - (userImg.width / 2) * scale;
-                const y = (HEIGHT / 2) - (userImg.height / 2) * scale;
-                ctx.drawImage(userImg, x, y, userImg.width * scale, userImg.height * scale);
-
-                ctx.fillStyle = "rgba(0,0,0,0.2)";
-                ctx.fillRect(0,0,WIDTH,HEIGHT);
+            const baseImg = new Image();
+            baseImg.onload = () => {
+                // 1. Draw Base Image (User Face OR AI Gen) scaled to cover
+                const scale = Math.max(WIDTH / baseImg.width, HEIGHT / baseImg.height);
+                const x = (WIDTH / 2) - (baseImg.width / 2) * scale;
+                const y = (HEIGHT / 2) - (baseImg.height / 2) * scale;
+                ctx.drawImage(baseImg, x, y, baseImg.width * scale, baseImg.height * scale);
 
                 const overlayImg = new Image();
                 overlayImg.crossOrigin = "anonymous"; 
                 overlayImg.onload = () => {
+                    // 2. Draw BLANK-04 Master Frame using SCREEN blend mode
+                    // Screen mode completely removes the black background, leaving only the white frame/logos perfectly intact!
+                    ctx.globalCompositeOperation = 'screen';
                     ctx.drawImage(overlayImg, 0, 0, WIDTH, HEIGHT);
-
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-                    ctx.font = "bold 20px 'Inter', sans-serif";
-                    ctx.textAlign = "center";
-                    ctx.textBaseline = "middle";
                     
-                    const words = promptText.toUpperCase().split(' ');
-                    let topLines = [];
-                    let bottomLines = [];
-                    let currentLine = words[0];
-                    const midPoint = Math.floor(words.length / 2);
-                    
-                    for (let i = 1; i < midPoint; i++) {
-                        let width = ctx.measureText(currentLine + " " + words[i]).width;
-                        if (width < WIDTH - 100) {
-                            currentLine += " " + words[i];
-                        } else {
-                            topLines.push(currentLine);
-                            currentLine = words[i];
-                        }
-                    }
-                    topLines.push(currentLine + "...");
-                    
-                    currentLine = "..." + words[midPoint];
-                    for (let i = midPoint + 1; i < words.length; i++) {
-                        let width = ctx.measureText(currentLine + " " + words[i]).width;
-                        if (width < WIDTH - 100) {
-                            currentLine += " " + words[i];
-                        } else {
-                            bottomLines.push(currentLine);
-                            currentLine = words[i];
-                        }
-                    }
-                    bottomLines.push(currentLine);
+                    // Reset blend mode to draw solid text over the top
+                    ctx.globalCompositeOperation = 'source-over';
 
-                    let startY = 60;
-                    topLines.forEach(line => {
-                        ctx.fillText(line, WIDTH / 2, startY);
-                        startY += 30;
-                    });
+                    // 3. Draw Dynamic Typography inside the frame box
+                    const marginLeft = 100;
+                    const titleTop = 160;
 
-                    startY = HEIGHT - (bottomLines.length * 30) - 40;
-                    bottomLines.forEach(line => {
-                        ctx.fillText(line, WIDTH / 2, startY);
-                        startY += 30;
+                    ctx.fillStyle = 'white';
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'top';
+                    ctx.font = '160px "Anton", sans-serif';
+                    
+                    ctx.fillText(config.titleLine1, marginLeft, titleTop);
+                    ctx.fillText(config.titleLine2, marginLeft, titleTop + 160);
+
+                    // Subtitle
+                    ctx.font = 'bold 24px "Inter", sans-serif';
+                    ctx.fillStyle = 'white';
+                    let subY = titleTop + 360;
+                    config.subtitle.forEach(line => {
+                        ctx.fillText(line, marginLeft, subY);
+                        subY += 32;
                     });
 
                     resolve(canvas.toDataURL('image/jpeg', 0.95));
                 };
-                overlayImg.onerror = () => reject("Failed to load overlay PNG");
+                overlayImg.onerror = () => reject("Failed to load Master Overlay.");
                 overlayImg.src = overlaySrc;
             };
-            userImg.onerror = () => reject("Failed to load user image");
-            userImg.src = userImgSrc;
+            baseImg.onerror = () => reject("Failed to load Base Image.");
+            baseImg.src = baseImgSrc;
         });
     }
 </script>
